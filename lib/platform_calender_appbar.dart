@@ -136,7 +136,7 @@ class _PlatformCalenderAppBarState extends State<PlatformCalenderAppBar> {
             : const EdgeInsets.symmetric(horizontal: 10),
         scrollDirection: Axis.horizontal,
         reverse: true,
-        controller: widget.controller ?? ScrollController(),
+        //controller: widget.controller ?? ScrollController(),
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
@@ -258,13 +258,13 @@ class _PlatformCalenderAppBarState extends State<PlatformCalenderAppBar> {
         controller: ScrollController(),
         slivers: <Widget>[
           Platform.isIOS
-              ? CupertinoSliverNavigationBar(
+              ? const CupertinoSliverNavigationBar(
                   largeTitle: Text('Stats'),
                 )
-              : SliverAppBar.large(
+              : const SliverAppBar.large(
                   floating: true,
                   pinned: true,
-                  key: const ValueKey('nav_bar'),
+                  key: ValueKey('nav_bar'),
                   title: Text('test'),
                 ),
 
@@ -274,10 +274,9 @@ class _PlatformCalenderAppBarState extends State<PlatformCalenderAppBar> {
           // SliverPadding(
           //   padding: EdgeInsets.zero,
           //   sliver:
-          SliverToBoxAdapter(
+          SliverFillRemaining(
             child: listDateView(),
-          )
-          // ),
+          ),
         ],
       ),
     );
