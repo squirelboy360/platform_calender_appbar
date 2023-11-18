@@ -5,17 +5,20 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_platform_widgets/flutter_platform_widgets.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
+import 'package:platform_calender_appbar/src/app_bar_calender_scroll.dart';
+import 'package:platform_calender_appbar/src/app_bar_widget.dart';
 
 class PlatformCalenderAppBar extends StatefulWidget {
   ///accent color of UI
   final Color? accent;
 
   ///definiton of your specific shade of white
-  final Color? white;
+  final Color? bright;
 
   ///definiton of your specific shade of black
-  final Color? black;
+  final Color? dark;
 
   ///the last date shown on the calendar
   final DateTime lastDate;
@@ -30,16 +33,22 @@ class PlatformCalenderAppBar extends StatefulWidget {
   final List<DateTime>? events;
 
   ///function which returns currently selected date
-  final Function onDateChanged;
+  final Function(DateTime) onDateChanged;
 
   ///definition of your custom padding
   final double? padding;
 
   ///definition of the atribute which shows full calendar view when pressing on date
-  final bool? fullCalendar;
+  final bool? shouldShowFullCalender;
 
   ///[backButton] shows BackButton in set to true
-  final bool? backButton;
+  final bool? showBackButton;
+
+  ///[scrollController] controls Scrollview
+  final ScrollController scrollController;
+
+  ///[fullCalendarBgColor] background color of full Calendar on expanded
+  final Color? fullCalendarBgColor;
 
   ///definiton of the calendar language
   final String? locale;
@@ -48,23 +57,73 @@ class PlatformCalenderAppBar extends StatefulWidget {
       {super.key,
       this.controller,
       this.accent,
-      this.white,
-      this.black,
       required this.lastDate,
       this.firstDate,
       this.selectedDate,
       this.events,
       required this.onDateChanged,
       this.padding,
-      this.fullCalendar,
-      this.backButton,
-      this.locale});
+      this.shouldShowFullCalender,
+      this.showBackButton,
+      this.locale,
+      this.bright,
+      this.dark,
+      required this.scrollController,
+      this.fullCalendarBgColor});
 
   @override
   State<PlatformCalenderAppBar> createState() => _PlatformCalenderAppBarState();
 }
 
 class _PlatformCalenderAppBarState extends State<PlatformCalenderAppBar> {
+//!initialization and re-assignment of events values
+  @override
+  void initState() {
+    ///initializing accent
+    accent = widget.accent ?? Colors.blue;
+
+    ///initilizing first date
+    firstDate = widget.firstDate ?? DateTime(1950);
+
+    ///initializing white
+    bright = widget.bright ?? Colors.white;
+
+    ///initializing black
+    dark = widget.dark ?? Colors.black87;
+
+    ///initializing padding
+    padding = widget.padding ?? 25.0;
+
+    ///initializing backbutton
+    showBackButton = widget.showBackButton ?? false;
+
+    //! ///initializing fullCalendar
+    //! fullCalendar = fullCalendar;
+    //! Initializing fullCalendar correctly
+    fullCalendar = widget.shouldShowFullCalender ?? false;
+
+    ///initializing firstDate
+    selectedDate = widget.selectedDate ?? widget.lastDate;
+
+    ///initializing referenceDate
+    referenceDate = referenceDate;
+
+    ///initializing language
+    initializeDateFormatting(locale);
+
+    ///initializing position to 1
+    position = 1;
+
+    ///changing event list to specific form
+    if (widget.events != null) {
+      ///for each item from event list, add just date String without time
+      for (var element in widget.events!) {
+        datesWithEnteries.add(element.toString().split(" ").first);
+      }
+    }
+    super.initState();
+  }
+
   ///defininon of [selectedDate] variable of current selected date
   DateTime selectedDate = DateTime.now();
 
@@ -72,34 +131,34 @@ class _PlatformCalenderAppBarState extends State<PlatformCalenderAppBar> {
   DateTime firstDate = DateTime.now();
 
   ///defininon of [position] variable of current selected calendar card
-  late int position;
+  int position = 0;
 
   ///definition of the last selected date
-  late DateTime referenceDate;
+  DateTime referenceDate = DateTime.now();
 
   ///list of dates with specific event (shown as a dot above the date)
   List<String> datesWithEnteries = [];
 
   ///definiton of your specific shade of white
-  late Color white;
+  Color bright = Colors.white;
 
   ///accent color of UI
-  late Color accent;
+  Color accent = const Color.fromRGBO(3, 169, 244, 1);
 
   ///definiton of your specific shade of black
-  late Color black;
+  Color dark = Colors.black;
 
   ///definition of your custom padding
-  late double padding;
+  double padding = 0.0;
 
   ///definition of the atribute which shows full calendar view when pressing on date
-  late bool fullCalendar;
+  bool fullCalendar = false;
 
   ///[backButton] shows BackButton in set to true
-  late bool backButton;
+  bool showBackButton = false;
 
   ///[locale] is used for current local language of the library
-  String get _locale => widget.locale ?? 'en';
+  String get locale => widget.locale ?? 'en';
   @override
   Widget build(BuildContext context) {
     ///changing all dates to correct form for easier
@@ -125,141 +184,234 @@ class _PlatformCalenderAppBarState extends State<PlatformCalenderAppBar> {
     pastDates.sort((b, a) => a.compareTo(b));
 
     //!
-    //!
 
-    Widget listDateView() => ListView.builder(
-        padding: pastDates.length < 5
-            ? EdgeInsets.symmetric(
-                horizontal: MediaQuery.of(context).size.width *
-                    (5 - pastDates.length) /
-                    10)
-            : const EdgeInsets.symmetric(horizontal: 10),
-        scrollDirection: Axis.horizontal,
-        reverse: true,
-        //controller: widget.controller ?? ScrollController(),
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
+    ///this function show full calendar view currently shown as modal bottom sheet
+    // it would be passed down to the widget tree.
+    showFullCalendar(String locale) {
+      showPlatformModalSheet<void>(
+        cupertino: CupertinoModalSheetData(semanticsDismissible: true),
+        material: MaterialModalSheetData(
+          isScrollControlled: true,
+          backgroundColor: widget.fullCalendarBgColor,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(30.0),
+                topRight: Radius.circular(30.0)),
+          ),
         ),
-        itemCount: pastDates.length,
-        itemBuilder: (context, index) {
-          ///definition date which is set to the current building date from dates list
-          DateTime date = pastDates[index];
+        context: context,
+        builder: (BuildContext context) {
+          double height;
+          DateTime? endDate = widget.lastDate;
 
-          ///if position of currently selected is equal to index + 1 (counting of positions starts with 1)
-          bool isSelected = position == index + 1;
+          if (firstDate.year == endDate.year &&
+              firstDate.month == endDate.month) {
+            height =
+                ((MediaQuery.of(context).size.width - 2 * padding) / 7) * 5 +
+                    150.0;
+          } else {
+            height = (MediaQuery.of(context).size.height - 100.0);
+          }
+          return Container(
+            height: height,
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: GestureDetector(
-              ///if pressed on specific date, set it as selected
-              onTap: () {
+            ///usage of full calender widget, which is defined below
+            child: FullCalendar(
+              height: height,
+              startDate: firstDate,
+              endDate: endDate,
+              padding: padding,
+              accent: accent,
+              black: dark,
+              white: bright,
+              events: datesWithEnteries,
+              selectedDate: referenceDate,
+              locale: locale,
+              onDateChange: (value) {
+                ///systematics of selecting specific date
+                //HapticFeedback.lightImpact();
+
+                ///hide modal bottom sheet
+                Navigator.pop(context);
+
+                ///define new variables
+                DateTime referentialDate = DateTime.parse(
+                    "${value.toString().split(" ").first} 12:00:00.000");
+
+                ///definition of [oldPosition]
+                int? oldPosition;
+
+                ///definition of [positionDifference]
+                late int positionDifference;
+
+                ///calculate new position of scrollview
                 setState(() {
-                  ///if user taps on this card set all parameters to this date
-                  selectedDate = date;
-                  referenceDate = selectedDate;
-                  position = index + 1;
+                  ///setting current position to old position
+                  oldPosition = position;
+
+                  ///counting the difference between dates
+                  positionDifference =
+                      -((referentialDate.difference(referenceDate).inHours / 24)
+                          .round());
                 });
-                widget.onDateChanged(selectedDate);
+
+                ///saving current offset
+                double offset = widget.scrollController.offset;
+
+                ///counting card width (similar to above)
+                double widthUnit = MediaQuery.of(context).size.width / 5 - 4.0;
+
+                ///wait to modal bottom sheet to hide
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  ///definition maximal offset based on maxScrollExtent
+                  double maxOffset =
+                      widget.scrollController!.position.maxScrollExtent;
+
+                  ///definition of minimal offset
+                  double minOffset = 0.0;
+
+                  ///counting current offset based of curren positon
+                  double newOffset =
+                      (offset + (widthUnit * positionDifference));
+
+                  ///if current offset is out of bounderies set it to maximal or minimal offset
+                  if (newOffset > maxOffset) {
+                    newOffset = maxOffset;
+                  } else if (newOffset < minOffset) {
+                    newOffset = minOffset;
+                  }
+
+                  ///scroll the calendar scroller to the selected date
+                  widget.scrollController?.animateTo(newOffset,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut);
+
+                  ///wait on animation to be finished
+                  Future.delayed(const Duration(milliseconds: 550), () {
+                    setState(() {
+                      ///set slected date to current value
+                      selectedDate = value;
+
+                      ///set refernece date to selected date
+                      referenceDate = selectedDate;
+
+                      ///change position to current position
+                      position = oldPosition! + positionDifference;
+                    });
+                  });
+                });
+
+                ///call function to return new selected date
+                widget.onDateChanged(value);
               },
-
-              ///different UI for nonselected containers and the selected ones
-              ///this is the definition of the main container of calendar card
-              child: SizedBox(
-                width: MediaQuery.of(context).size.width / 5 - 4.0,
-                child: Align(
-                  alignment: Alignment.center,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 10.0, horizontal: 5.0),
-                    child: Container(
-                      height: 120.0,
-                      width: MediaQuery.of(context).size.width / 5 - 4.0,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10.0),
-                        color: isSelected ? white : null,
-                        boxShadow: [
-                          isSelected
-                              ? BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
-                                  spreadRadius: 1,
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 3),
-                                )
-                              : BoxShadow(
-                                  color: Colors.grey.withOpacity(0.0),
-                                  spreadRadius: 5,
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 3),
-                                )
-                        ],
-                      ),
-
-                      ///definition of content inside of calendar card
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ///indicators of event on specific date
-                          datesWithEnteries
-                                  .contains(date.toString().split(" ").first)
-                              ? Container(
-                                  width: 5.0,
-                                  height: 5.0,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: isSelected
-                                        ? accent
-                                        : white.withOpacity(0.6),
-                                  ),
-                                )
-                              : const SizedBox(
-                                  height: 5.0,
-                                ),
-                          const SizedBox(height: 10),
-
-                          ///date number
-                          Text(
-                            DateFormat("dd").format(date),
-                            style: TextStyle(
-                                fontSize: 22.0,
-                                color: isSelected
-                                    ? accent
-                                    : white.withOpacity(0.6),
-                                fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(height: 5),
-
-                          ///day of the week
-                          Text(
-                            DateFormat.E(Locale(_locale).toString())
-                                .format(date),
-                            style: TextStyle(
-                                fontSize: 12.0,
-                                color: isSelected
-                                    ? accent
-                                    : white.withOpacity(0.6),
-                                fontWeight: FontWeight.w400),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ),
           );
-        });
-    //!
+        },
+      );
+    }
+
+//!
+//!AppBar
+    Widget topButtons() {
+      return Row(
+        children: [
+          //Houses the optional Backbutton and FullCalender
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: widget.padding ?? 0),
+            child: SizedBox(
+              width: MediaQuery.of(context).size.width - (widget.padding! * 2),
+              child: widget.showBackButton ?? false
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          GestureDetector(
+                              child: Icon(
+                                Icons.arrow_back_ios_rounded,
+                                color: widget.bright,
+                              ),
+                              onTap: () => Navigator.pop(context)),
+                          GestureDetector(
+                            onTap: () => widget.shouldShowFullCalender ?? false
+                                ? showFullCalendar(widget.locale ?? 'en')
+                                : null,
+                            child: Text(
+                              DateFormat.yMMMM(
+                                      Locale(widget.locale ?? 'en').toString())
+                                  .format(
+                                      widget.selectedDate ?? DateTime.now()),
+                              style: TextStyle(
+                                  fontSize: 20.0,
+                                  color: widget.bright,
+                                  fontWeight: FontWeight.w400),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        GestureDetector(
+                          onTap: () => widget.shouldShowFullCalender ?? false
+                              ? showFullCalendar(widget.locale ?? 'en')
+                              : null,
+                          child: Text(
+                            DateFormat.yMMMM(
+                                    Locale(widget.locale ?? 'en').toString())
+                                .format(widget.selectedDate ?? DateTime.now()),
+                            style: TextStyle(
+                                fontSize: 20.0,
+                                color: widget.bright,
+                                fontWeight: FontWeight.w400),
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      );
+    }
     //!
 
+//Main AppBar code begins here
     return PlatformScaffold(
       body: CustomScrollView(
+        clipBehavior: Clip.hardEdge,
         physics: const BouncingScrollPhysics(
             parent: AlwaysScrollableScrollPhysics()),
         controller: ScrollController(),
         slivers: <Widget>[
           Platform.isIOS
-              ? const CupertinoSliverNavigationBar(
-                  largeTitle: Text('Stats'),
+              ? SliverToBoxAdapter(
+                  //AppBar
+                  child: Column(
+                    children: [
+                      Platform.isIOS
+                          ? CupertinoNavigationBar(
+                              middle: topButtons(),
+                            )
+                          : AppBar(),
+                      AppBarWidget(
+                          accent: accent,
+                          bgColor: widget.fullCalendarBgColor,
+                          padding: padding,
+                          showBackButton: widget.showBackButton ?? false,
+                          bright: bright,
+                          dark: dark,
+                          selectedDate: selectedDate,
+                          pastDates: pastDates,
+                          locale: widget.locale ?? 'en',
+                          onDateChanged: widget.onDateChanged,
+                          datesWithEnteries: datesWithEnteries,
+                          shouldShowFullCalender:
+                              widget.shouldShowFullCalender ?? false,
+                          referenceDate: referenceDate,
+                          showFullCalendar: showFullCalendar),
+                    ],
+                  ),
                 )
               : const SliverAppBar.large(
                   floating: true,
@@ -274,9 +426,6 @@ class _PlatformCalenderAppBarState extends State<PlatformCalenderAppBar> {
           // SliverPadding(
           //   padding: EdgeInsets.zero,
           //   sliver:
-          SliverFillRemaining(
-            child: listDateView(),
-          ),
         ],
       ),
     );

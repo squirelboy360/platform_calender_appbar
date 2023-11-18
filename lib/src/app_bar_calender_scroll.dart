@@ -630,7 +630,7 @@ class FullCalendar extends StatefulWidget {
   ///function which returns currently selected date
   final Function onDateChange;
 
-  FullCalendar({
+  const FullCalendar({
     Key? key,
     this.accent,
     this.endDate,
@@ -645,10 +645,10 @@ class FullCalendar extends StatefulWidget {
     required this.onDateChange,
   }) : super(key: key);
   @override
-  _FullCalendarState createState() => _FullCalendarState();
+  FullCalendarState createState() => FullCalendarState();
 }
 
-class _FullCalendarState extends State<FullCalendar> {
+class FullCalendarState extends State<FullCalendar> {
   ///definition of [endDate]
   late DateTime endDate;
 
@@ -659,6 +659,7 @@ class _FullCalendarState extends State<FullCalendar> {
   List<String>? events = [];
 
   ///transforming variables to correct form
+  @override
   void initState() {
     setState(() {
       ///parsing [startDate] String to DateTime
@@ -670,7 +671,7 @@ class _FullCalendarState extends State<FullCalendar> {
           "${widget.endDate.toString().split(" ").first} 23:00:00.000");
 
       ///initializing [events]
-      events = widget.events != null ? widget.events : null;
+      events = widget.events;
     });
     super.initState();
   }
@@ -734,7 +735,7 @@ class _FullCalendarState extends State<FullCalendar> {
       return Padding(
         padding:
             EdgeInsets.fromLTRB(widget.padding!, 40.0, widget.padding!, 0.0),
-        child: Container(
+        child: SizedBox(
           ///scrolling of calendar
           child: ListView.builder(
               physics: const BouncingScrollPhysics(),
